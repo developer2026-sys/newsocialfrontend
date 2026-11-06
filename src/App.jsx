@@ -28,7 +28,7 @@ const PLATFORM_STYLES = {
 
 
 const CATEGORY_STYLES_EXTRA = "bg-slate-100 text-slate-600";
-const API_URL = "http://localhost:3001";
+const API_URL = "https://newsocialbackend.vercel.app";
 
 
 export default function App() {
