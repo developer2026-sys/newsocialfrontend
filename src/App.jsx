@@ -21,10 +21,12 @@ const CATEGORY_STYLES = {
 
 const PLATFORM_STYLES = {
   Reddit: "bg-orange-100 text-orange-700",
-  "Hacker News": "bg-amber-100 text-amber-800",
   LinkedIn: "bg-blue-100 text-blue-700",
   X: "bg-slate-200 text-slate-800",
+  Instagram: "bg-pink-100 text-pink-700",
+  Facebook: "bg-sky-100 text-sky-700",
 };
+
 
 
 const CATEGORY_STYLES_EXTRA = "bg-slate-100 text-slate-600";
@@ -32,23 +34,34 @@ const API_URL = "https://newsocialbackend.vercel.app";
 
 
 export default function App() {
-  const [status, setStatus] = useState("idle"); // idle | running | done
+  const [sources, setSources] = useState(["LinkedIn"]);
+
+const toggleSource = (p) =>
+  setSources((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+  const [status, setStatus] = useState("idle");   
   const [progress, setProgress] = useState(0);
   const [rows, setRows] = useState([]);
+  const SEARCH_PLATFORMS = ["LinkedIn", "Facebook", "X"];
   const [platform, setPlatform] = useState("All");
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
 
-  const [terms, setTerms] = useState("Amazon layoffs");
+  const [terms, setTerms] = useState("");
   const [errors, setErrors] = useState([]);
 
   const runCollection = async () => {
+    const cleaned = terms.trim();
+    if (!cleaned || sources.length === 0) return;
+  
     setStatus("running");
     setProgress(30);
     setRows([]);
     setErrors([]);
     try {
-      const res = await fetch(`${API_URL}/api/collect?terms=${encodeURIComponent(terms)}`);
+      const src = sources.map((s) => s.toLowerCase()).join(",");
+      const res = await fetch(
+        `${API_URL}/api/collect?terms=${encodeURIComponent(cleaned)}&sources=${src}`
+      );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
       setProgress(100);
@@ -70,6 +83,16 @@ export default function App() {
     });
   }, [rows, platform, category, query]);
 
+  const platformOptions = useMemo(
+    () => ["All", ...new Set(rows.map((r) => r.platform))],
+    [rows]
+  );
+  const categoryOptions = useMemo(
+    () => ["All", ...new Set(rows.map((r) => r.category))],
+    [rows]
+  );
+
+
   const categoryCounts = useMemo(() => {
     const counts = {};
     rows.forEach((r) => {
@@ -83,33 +106,60 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div>
-            <h1 className="text-xl font-semibold">Social Listening Dashboard</h1>
-            <p className="text-sm text-slate-500">Public conversation data across platforms</p>
-          </div>
-          <input
-            value={terms}
-            onChange={(e) => setTerms(e.target.value)}
-            placeholder="Companies, comma separated"
-            className="mr-3 w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-          />
+    <header className="border-b border-slate-200 bg-white">
+  <div className="mx-auto max-w-6xl px-6 py-5">
+    <div className="flex items-center justify-between">
+      <div>
+        <h1 className="text-xl font-semibold">Social Listening Dashboard</h1>
+        <p className="text-sm text-slate-500">Public conversation data across platforms</p>
+      </div>
+      <div className="flex items-center">
+        <input
+          value={terms}
+          onChange={(e) => setTerms(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && status !== "running" && runCollection()}
+          placeholder="Enter a keyword, hashtag or topic (comma separated)"
+          className="mr-3 w-80 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+        />
+        <button
+          onClick={runCollection}
+          disabled={status === "running" || !terms.trim() || sources.length === 0}
+          className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {status === "running" ? "Collecting..." : status === "done" ? "Run Again" : "Run Collection"}
+        </button>
+      </div>
+    </div>
+
+    <div className="mt-4 flex items-center gap-2 text-sm">
+      <span className="text-slate-500">Search on:</span>
+      {SEARCH_PLATFORMS.map((p) => {
+        const active = sources.includes(p);
+        return (
           <button
-            onClick={runCollection}
-            disabled={status === "running"}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            key={p}
+            type="button"
+            onClick={() => toggleSource(p)}
+            className={`rounded-full border px-3 py-1 font-medium transition ${
+              active
+                ? "border-indigo-600 bg-indigo-600 text-white"
+                : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
+            }`}
           >
-            {status === "running" ? "Collecting..." : status === "done" ? "Run Again" : "Run Collection"}
+            {p}
           </button>
-        </div>
-      </header>
+        );
+      })}
+    </div>
+  </div>
+</header>
+
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
         {status === "running" && (
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="mb-2 flex justify-between text-sm text-slate-600">
-            <span>Pulling conversations from LinkedIn...</span>
+            <span>Pulling conversations...</span>
               <span>{progress}%</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -127,7 +177,7 @@ export default function App() {
         {status === "idle" && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <p className="text-lg font-medium">No data yet</p>
-            <p className="mt-1 text-sm text-slate-500">Click "Run Collection" to pull the latest conversations.</p>
+            <p className="mt-1 text-sm text-slate-500">Enter a search term above and click "Run Collection" to pull the latest conversations.</p>
           </div>
         )}
 
@@ -166,7 +216,7 @@ export default function App() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search text, organization, author..."
+              placeholder="Search text, segment, author..."
                 className="min-w-64 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500"
               />
               <select
@@ -174,18 +224,21 @@ export default function App() {
                 onChange={(e) => setPlatform(e.target.value)}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                                      {["All", "LinkedIn", "Hacker News"].map((p) => (
-                  <option key={p}>{p}</option>
-                ))}
+                                 {platformOptions.map((p) => (
+  <option key={p}>{p}</option>
+))}
+
+
               </select>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                                {["All", ...Object.keys(CATEGORY_STYLES), "General"].map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
+                            {categoryOptions.map((c) => (
+  <option key={c}>{c}</option>
+))}
+
               </select>
             </div>
 
